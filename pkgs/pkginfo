@@ -1,0 +1,10 @@
+#!/bin/bash
+# Dongdong Kong
+# Show package detailed info
+
+for pkg in "$@"
+do
+    echo $pkg
+    echo "====================================================================="
+    dpkg --listfiles $pkg
+done

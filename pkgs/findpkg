@@ -1,0 +1,11 @@
+#!/bin/bash
+# Dongdong Kong
+# Find install related packages
+
+for pkg in "$@"
+do
+    echo $pkg
+    echo "====================================================================="
+    # dpkg --listfiles $pkg
+    dpkg --list | grep $pkg
+done
