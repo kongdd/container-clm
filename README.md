@@ -1,4 +1,4 @@
-## Docker container for Community Land Surface Model (CLM5.0)
+## Docker container for Community Land Surface Model CLM5.0
 
 > Dongdong Kong, Sun Yat-sen Universally
 
