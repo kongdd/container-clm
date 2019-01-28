@@ -79,22 +79,33 @@ RUN useradd -rm -s /bin/bash clm \
 # inst packages
 COPY bin/* /opt/bin/
 COPY example/* /home/clm/model/
-# COPY pkgs/* /model/
+COPY pkgs/*.gz /model/
 
 ## BUILD NETCDF
 # https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html
-# ARG H5DIR=/usr
-# RUN tar xzf hdf5-1.10.4.tar.gz \
-#  && cd hdf5-1.10.4 \
-#  && CC=mpicc ./configure --enable-parallel --prefix=${H5DIR} \
-#  # && make check \
-#  && make install && cd ..
+ARG H5DIR=/usr
+RUN tar xzf hdf5-1.10.4.tar.gz \
+ && cd hdf5-1.10.4 \
+ && CC=mpicc ./configure --enable-parallel --prefix=${H5DIR} \
+ # && make check \
+ && make install && cd .. \
+ && rm -rf hdf5-1.10.4 hdf5-1.10.4.tar.gz
 
-# ARG NCDIR=/opt/netcdf-4.6.2
-# RUN tar xzf netcdf-c-4.6.2.tar.gz \
-#  && cd netcdf-c-4.6.2 \
-#  && CC=mpicc CPPFLAGS=-I${H5DIR}/include LDFLAGS=-L${H5DIR}/lib ./configure --enable-shared --enable-parallel-tests --prefix=${NCDIR} \
-#  && make check && make install && cd ..
+ARG NCDIR=/opt/netcdf-4.6.2
+RUN tar xzf netcdf-c-4.6.2.tar.gz \
+ && cd netcdf-c-4.6.2 \
+ && CC=mpicc CPPFLAGS=-I${H5DIR}/include LDFLAGS=-L${H5DIR}/lib ./configure --enable-shared --prefix=${NCDIR} \
+ && make check && make install && cd .. \
+ && rm -rf netcdf-c-4.6.2 netcdf-c-4.6.2.tar.gz
+# --enable-parallel-tests
+
+RUN tar xzf netcdf-fortran-4.4.5.tar.gz \
+ && cd netcdf-fortran-4.4.5 \
+ && CPPFLAGS='-I/usr/lib' \
+    LDFLAG='-L/usr/lib -L/usr/lib/x86_64-linux-gnu' CC=mpicc \
+    ./configure --enable-parallel-tests --prefix=${NCDIR} \
+ && make check && make install && cd .. \
+ && rm -rf netcdf-fortran-4.4.5 netcdf-fortran-4.4.5.tar.gz
 
 # --disable-shared
 # RUN cd .. && tar xzf hdf5-1.10.4.tar.gz \
@@ -104,5 +115,5 @@ COPY example/* /home/clm/model/
 
 # findpkg netcdf mpich lapack blas
 # pkginfo libnetcdf-dev libnetcdff-dev libpnetcdf-dev libopenmpi-dev libmpich-dev liblapack3 libblas3 > info_pkg.txt
-USER clm
-WORKDIR /home/clm/model
+# USER clm
+# WORKDIR /home/clm/model
