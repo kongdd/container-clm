@@ -1,0 +1,7 @@
+# *.gz
+netcdf/
+temp/
+pkgs/ParallelIO-pio2_3_1/
+pkgs/
+*.txt
+1850Clm50Bgc/

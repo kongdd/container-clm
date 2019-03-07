@@ -1,4 +1,4 @@
-FROM ubuntu:18.10
+FROM ubuntu:18.04
 
 ## CLM5.0
 MAINTAINER "Dongdong Kong"
@@ -6,17 +6,20 @@ MAINTAINER "Dongdong Kong"
 WORKDIR /model
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN rm  /etc/apt/sources.list \
- && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ cosmic main restricted universe multiverse" >> /etc/apt/sources.list \
- && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ cosmic-updates main restricted universe multiverse" >> /etc/apt/sources.list \
- && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ cosmic-backports main restricted universe multiverse" >> /etc/apt/sources.list \
- && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ cosmic-security main restricted universe multiverse" >> /etc/apt/sources.list \
+ENV VERSION_CODENAME=bionic
+# cosmic
+
+RUN rm /etc/apt/sources.list \
+ && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${VERSION_CODENAME} main restricted universe multiverse" >> /etc/apt/sources.list \
+ && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${VERSION_CODENAME}-updates main restricted universe multiverse" >> /etc/apt/sources.list \
+ && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${VERSION_CODENAME}-backports main restricted universe multiverse" >> /etc/apt/sources.list \
+ && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${VERSION_CODENAME}-security main restricted universe multiverse" >> /etc/apt/sources.list \
  && echo 'Acquire::https { Verify-Peer "false"; Verify-Host "false"; }' >> /etc/apt/apt.conf.d/tuna.conf
 
 # && echo "deb https://cloud.r-project.org/bin/linux/ubuntu cosmic-cran35/" >> /etc/apt/sources.list
 
 RUN apt-get update \
- && apt install -y --no-install-recommends \
+ && apt install -y --no-install-recommends --assume-yes \
     ca-certificates \
     dejagnu \
     sudo libtool \
@@ -25,123 +28,118 @@ RUN apt-get update \
     # r-cran-ncdf4 r-cran-raster \
     libxml2-utils libxml-libxml-perl \
     python \
+    make m4 \
+    libcurl4-openssl-dev liblapack-dev libblas-dev mpich libmpich-dev \
  && apt-get clean
-# libopenmpi-dev 
+
+# libopenmpi-dev
 
 RUN git clone -b release-clm5.0 https://github.com/ESCOMP/ctsm \
  && cd ctsm && ./manage_externals/checkout_externals && cd ..
 
-# RUN echo "export " >> /etc/bashrc \
-#  && echo "export NETCDF=/opt/netcdf" >> /etc/bashrc \
-#  && echo "export NETCDF_PATH=/opt/netcdf" >> /etc/bashrc \
-#  && echo "export LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu" >> /etc/bashrc
+ADD pkgs/*.gz /usr/local/src/
 
-RUN apt install -y --no-install-recommends \
-    m4 zlib1g-dev libhdf5-dev libnetcdff-dev libpnetcdf-dev \
-    libmpich-dev \
-    apt-utils make \
-    libglobus-ftp-client-dev \
+ARG ZDIR=/usr/local/zlib
+RUN cd /usr/local/src/zlib-1.2.11 \
+ && CC=mpicc ./configure --prefix=${ZDIR} \
+ && make \
+ && make check \
+ && make install \
+ && rm -rf /usr/local/src/zlib-1.2.11
+
+ENV CC=mpicc \
+    CXX=mpicxx \
+    FC=mpif90 \
+    F77=mpif90
+
+ARG PNDIR=/usr/local/pnetcdf
+RUN cd /usr/local/src/pnetcdf-1.11.0 \
+ && FC=mpif90 MPICC=mpicc CFLAGS="-fPIC -g -O2" \
+    ./configure --prefix=${PNDIR} --enable-shared --enable-profiling\
+ && make \
+ && make tests \
+ && make check \
+ && make ptests \
+ && make install \
+ && rm -rf /usr/local/src/pnetcdf-1.11.0
+
+# Parallel OpenMPI-HDF5-NetCDF stack
+# https://gist.github.com/milancurcic/3a6c1a97a99d291f88cc61dae6621bdf
+ARG H5DIR=/usr/local/hdf5
+RUN cd /usr/local/src/hdf5-1.10.4 \
+ && CC=mpicc FC=mpif90 CFLAGS="-fPIC -w" ./configure --prefix=${H5DIR} \
+ --with-zlib=${ZDIR} --enable-parallel --enable-hl \
+ && make \
+ # && make check \
+ && make install \
+ && rm -rf /usr/local/src/hdf5-1.10.4
+#--enable-shared --enable-fortran
+
+ARG NCDIR=/usr/local/netcdf4
+RUN cd /usr/local/src/netcdf-c-4.6.2 \
+ && CC=mpicc CPPFLAGS="-I${PNDIR}/include -I${H5DIR}/include -I${ZDIR}/include" \
+    LDFLAGS="-L${PNDIR}/lib -L${H5DIR}/lib -L${ZDIR}/lib" \
+    ./configure --prefix=${NCDIR} --enable-parallel-tests \
+ && make \
+ && make check \
+ && make install \
+ && rm -rf /usr/local/src/netcdf-c-4.6.2
+
+ARG NFDIR=/usr/local/netcdff4
+RUN cd /usr/local/src/netcdf-fortran-4.4.5 \
+ && CPPFLAGS=-I${NCDIR}/include LDFLAGS=-L${NCDIR}/lib \
+    ./configure --prefix=${NFDIR} \
+ && make \
+ && make check \
+ && make install \
+ && rm -rf /usr/local/src/netcdf-fortran-4.4.5
+
+RUN echo ${NCDIR}/lib > /etc/ld.so.conf.d/netcdf.conf \
+ && echo ${NFDIR}/lib >> /etc/ld.so.conf.d/netcdf.conf \
+ && echo ${ZDIR}/lib >> /etc/ld.so.conf.d/netcdf.conf \
+ && echo ${H5DIR}/lib >> /etc/ld.so.conf.d/netcdf.conf \
+ && echo ${PNDIR}/lib >> /etc/ld.so.conf.d/netcdf.conf \
+ && ldconfig
+
+# Install wget and x11
+RUN apt install -y --assume-yes gnupg wget curl \
+ && apt install -y --no-install-recommends --assume-yes \
+    x11-apps tree \
  && apt-get clean
 
-# fix link
-RUN mkdir /opt/netcdf \
- && ln -sf /usr/include /opt/netcdf/include \
- && ln -sf /usr/lib/x86_64-linux-gnu /opt/netcdf/lib \
- && ln -sf /usr/lib/x86_64-linux-gnu/lapack/liblapack.so.3 /usr/lib/liblapack.so \
- && ln -sf /usr/lib/x86_64-linux-gnu/blas/libblas.so.3 /usr/lib/libblas.so
+# Sublime text
+# ARG SUBLIME_BUILD="${SUBLIME_BUILD:-3200}"
+# RUN curl -O https://download.sublimetext.com/sublime-text_build-"${SUBLIME_BUILD}"_amd64.deb \
+#  && dpkg -i -R sublime-text_build-"${SUBLIME_BUILD}"_amd64.deb || echo "\n Will force install of missing ST3 dependencies...\n"
+RUN wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | sudo apt-key add - \
+ && echo "deb https://download.sublimetext.com/ apt/stable/" | sudo tee /etc/apt/sources.list.d/sublime-text.list \
+ && apt update \
+ && apt install sublime-text -y
 
-# inst packages
-COPY bin/* /opt/bin/
-COPY example/* /home/clm/model/
-COPY pkgs/*.gz /model/
+## Configuration
+VOLUME [ "/inputdata"]
+ENV USER=clm
+RUN useradd -m -G adm,sudo -s /bin/bash $USER \
+ && echo "root:root" | chpasswd \
+ && echo "clm:clm" | chpasswd \
+ && apt-get remove wget -y
 
-## 0. Pnetcdf
-ARG PNETCDF_PATH=/opt/pnetcdf
-RUN apt-get install wget tree\
- && wget -qO- http://cucis.ece.northwestern.edu/projects/PnetCDF/Release/parallel-netcdf-1.10.0.tar.gz | tar xz \
- && cd parallel-netcdf-1.10.0 \
- && autoreconf -f -i \
- && FC=mpif90 CC=mpicc CFLAGS=-fPIC ./configure --enable-shared --prefix=${PNETCDF_PATH} \
- && make install && cd .. && rm -rf parallel-netcdf-1.10.0
+ENV PATH="${NCDIR}/bin:${PATH}"
 
-## 1. BUILD NETCDF (serial version)
-# https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html
-ARG H5DIR=/opt/hdf5-serial
-RUN tar xzf hdf5-1.10.4.tar.gz \
- && cd hdf5-1.10.4 \
- && CC=mpicc ./configure --prefix=${H5DIR} \
- && make install && make check && cd .. \
- && rm -rf hdf5-1.10.4
+COPY config/*.xml /home/${USER}/.cime/
+COPY config /home/${USER}/cesm/config
+COPY run_CLM50_example01.sh /home/${USER}/cesm/
 
-ARG NCDIR=/opt/netcdf-4.6.2-serial
-RUN tar xzf netcdf-c-4.6.2.tar.gz \
- && cd netcdf-c-4.6.2 \
- && CPPFLAGS=-I${H5DIR}/include \
-    LDFLAGS=-L${H5DIR}/lib \
-    CC=mpicc ./configure --enable-shared --prefix=${NCDIR} \
- && make check && make install && cd .. \
- && rm -rf netcdf-c-4.6.2
-# --enable-parallel-tests
+WORKDIR /home/${USER}/cesm
 
-RUN tar xzf netcdf-fortran-4.4.5.tar.gz \
- && cd netcdf-fortran-4.4.5 \
- && CPPFLAGS='-I/usr/lib' \
-    LDFLAG='-L/usr/lib -L/usr/lib/x86_64-linux-gnu' \
-    CC=mpicc ./configure --enable-shared --prefix=${NCDIR} \
- && make check && make install && cd .. \
- && rm -rf netcdf-fortran-4.4.5
+RUN chown -R clm:clm /home /home/${USER} /home/${USER}/.cime /inputdata
+ # && chmod 755 -R /inputdata /home/${USER}/.cime /home/${USER} \
+ # && echo 'export DISPLAY=:0.0' >> /etc/profile, chown
 
-## 2. BUILD NETCDF (parallel version)
-# https://www.unidata.ucar.edu/software/netcdf/docs/getting_and_building_netcdf.html
-ARG H5DIR=/opt/hdf5
-RUN tar xzf hdf5-1.10.4.tar.gz \
- && cd hdf5-1.10.4 \
- && CC=mpicc ./configure --enable-shared --enable-parallel --prefix=${H5DIR} \
- && make all check \
- && make install && cd .. \
- && rm -rf hdf5-1.10.4 hdf5-1.10.4.tar.gz
-
-ARG NCDIR=/opt/netcdf-4.6.2
-RUN tar xzf netcdf-c-4.6.2.tar.gz \
- && cd netcdf-c-4.6.2 \
- && CPPFLAGS='-I${H5DIR}/include -I${PNETCDF_PATH}/include'  \
-    LDFLAGS='-L${H5DIR}/lib -L${PNETCDF_PATH}/lib' \
-    CC=mpicc ./configure --enable-pnetcdf --enable-shared --enable-parallel-tests --prefix=${NCDIR} \
- && make all check \
- && make install && cd .. \
- && rm -rf netcdf-c-4.6.2
-
-RUN tar xzf netcdf-fortran-4.4.5.tar.gz \
- && cd netcdf-fortran-4.4.5 \
- && CPPFLAGS='-I${H5DIR}/include -I${PNETCDF_PATH}/include'  \
-    LDFLAGS='-L${H5DIR}/lib -L${PNETCDF_PATH}/lib' \
-    CC=mpicc ./configure --enable-pnetcdf --enable-shared --enable-parallel-tests --prefix=${NCDIR} \
- && make all check \
- && make install && cd .. \
- && rm -rf netcdf-fortran-4.4.5
-
-RUN rm -rf *.gz
-
-## POST procedures
-ENV NETCDF=/opt/netcdf \
-    NETCDF_PATH=/opt/netcdf-4.6.2 \
-    PNETCDF_PATH=/opt/pnetcdf \
-    CIME=/model/ctsm/cime \
-    LD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu \
-    PATH=/model/ctsm/cime/scripts:/opt/bin:$PATH \
-    USER=clm
-
-## References:
-# https://stackoverflow.com/questions/27701930/add-user-to-docker-container
-# https://stackoverflow.com/questions/25845538/how-to-use-sudo-inside-a-docker-container
-RUN useradd -rm -s /bin/bash clm \
- && chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo \
- && echo "root:ubuntu" | chpasswd \
- && echo "clm:ubuntu" | chpasswd \
- && usermod -aG sudo clm \
- && chmod -R 777 /model/ctsm/cime/config/cesm/machines/
-
-# findpkg netcdf mpich lapack blas
-# pkginfo libnetcdf-dev libnetcdff-dev libpnetcdf-dev libopenmpi-dev libmpich-dev liblapack3 libblas3 > info_pkg.txt
-# USER clm
-# WORKDIR /home/clm/model
+USER ${USER}
+# ARG GIT_SSL_NO_VERIFY=true
+# RUN cd /home/${USER} \
+#  && git clone -b release-clm5.0 https://github.com/ESCOMP/ctsm.git clm5 \
+#  && cd clm5 \
+#  && ./manage_externals/checkout_externals
+CMD bash

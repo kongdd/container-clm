@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<config_machines version="2.0">
+    <machine MACH="kong">
+        <DESC>
+            Example port to centos7 linux system with gcc, netcdf, pnetcdf and mpich
+            using modules from http://www.admin-magazine.com/HPC/Articles/Environment-
+            Modules
+        </DESC>
+        <NODENAME_REGEX>.*</NODENAME_REGEX>
+        <OS>LINUX</OS>
+        <PROXY> https://howto.get.out </PROXY>
+        <COMPILERS>gnu</COMPILERS>
+        <MPILIBS>mpich</MPILIBS>
+        <PROJECT>none</PROJECT>
+        <SAVE_TIMING_DIR>$ENV{HOME}/cesm</SAVE_TIMING_DIR>
+        <CIME_OUTPUT_ROOT>$ENV{HOME}/cesm</CIME_OUTPUT_ROOT>
+        <DIN_LOC_ROOT>/inputdata/cesminput</DIN_LOC_ROOT>
+        <DIN_LOC_ROOT_CLMFORC>/inputdata/cesminput/atm/datm7</DIN_LOC_ROOT_CLMFORC>
+        <DOUT_S_ROOT>$ENV{HOME}/cesm/$CASE/archive</DOUT_S_ROOT>
+        <BASELINE_ROOT>$ENV{HOME}/cesm/cesm_baselines</BASELINE_ROOT>
+        <CCSM_CPRNC>$ENV{HOME}/cesm/cprnc</CCSM_CPRNC>
+        <GMAKE>make</GMAKE>
+        <GMAKE_J>2</GMAKE_J>
+        <BATCH_SYSTEM>none</BATCH_SYSTEM>
+        <SUPPORTED_BY>kongdd.sysu@gmail.com</SUPPORTED_BY>
+        <MAX_TASKS_PER_NODE>2</MAX_TASKS_PER_NODE>
+        <MAX_MPITASKS_PER_NODE>2</MAX_MPITASKS_PER_NODE>
+        <PROJECT_REQUIRED>FALSE</PROJECT_REQUIRED>
+        <mpirun mpilib="mpich">
+            <executable>mpirun</executable>
+            <arguments>
+                <arg name="ntasks"> -np {{ total_tasks }} </arg>
+            </arguments>
+        </mpirun>
+        <module_system type="none" />
+        <environment_variables>
+            <!-- <env name="HOME">/mnt/d/Github/model</env> -->
+            <!-- <env name="OMP_STACKSIZE">256M</env> -->
+            <env name="NETCDF_C_PATH">/usr/local/netcdf4</env>
+            <env name="NETCDF_FORTRAN_PATH">/usr/local/netcdff4</env>
+            <!-- <env name="NetCDF_Fortran_LIBRARY">$ENV{NETCDF_PATH}/lib</env> -->
+            <env name="PNETCDF_PATH">/usr/local/pnetcdf</env>
+            <!-- <env name="PnetCDF_Fortran_LIBRARY">/usr/local/pnetcdf/lib</env> -->
+            <!-- <env name="NetCDF_C_LIBRARY">$ENV{NETCDF_PATH}/lib</env>
+            <env name="NetCDF_C_INCLUDE_DIR">$ENV{NETCDF_PATH}/include</env>
+            <env name="NetCDF_Fortran_INCLUDE_DIR">$ENV{NETCDF_PATH}/include</env> -->
+        </environment_variables>
+        <resource_limits>
+            <resource name="RLIMIT_STACK">-1</resource>
+        </resource_limits>
+    </machine>
+    <!-- <default_run_suffix>
+        <default_run_exe>${EXEROOT}/cesm.exe </default_run_exe>
+        <default_run_misc_suffix> >> cesm.log.$LID 2>&amp;1
+        </default_run_misc_suffix>
+    </default_run_suffix> -->
+</config_machines>
