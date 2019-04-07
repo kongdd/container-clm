@@ -33,17 +33,13 @@ RUN apt-get update \
  && apt-get clean
 
 # libopenmpi-dev
-
-RUN git clone -b release-clm5.0 https://github.com/ESCOMP/ctsm \
- && cd ctsm && ./manage_externals/checkout_externals && cd ..
-
 ADD pkgs/*.gz /usr/local/src/
 
 ARG ZDIR=/usr/local/zlib
 RUN cd /usr/local/src/zlib-1.2.11 \
  && CC=mpicc ./configure --prefix=${ZDIR} \
  && make \
- && make check \
+ # && make check \
  && make install \
  && rm -rf /usr/local/src/zlib-1.2.11
 
@@ -57,9 +53,9 @@ RUN cd /usr/local/src/pnetcdf-1.11.0 \
  && FC=mpif90 MPICC=mpicc CFLAGS="-fPIC -g -O2" \
     ./configure --prefix=${PNDIR} --enable-shared --enable-profiling\
  && make \
- && make tests \
- && make check \
- && make ptests \
+ # && make tests \
+ # && make check \
+ # && make ptests \
  && make install \
  && rm -rf /usr/local/src/pnetcdf-1.11.0
 
@@ -81,7 +77,7 @@ RUN cd /usr/local/src/netcdf-c-4.6.2 \
     LDFLAGS="-L${PNDIR}/lib -L${H5DIR}/lib -L${ZDIR}/lib" \
     ./configure --prefix=${NCDIR} --enable-parallel-tests \
  && make \
- && make check \
+ # && make check \
  && make install \
  && rm -rf /usr/local/src/netcdf-c-4.6.2
 
@@ -90,7 +86,7 @@ RUN cd /usr/local/src/netcdf-fortran-4.4.5 \
  && CPPFLAGS=-I${NCDIR}/include LDFLAGS=-L${NCDIR}/lib \
     ./configure --prefix=${NFDIR} \
  && make \
- && make check \
+ # && make check \
  && make install \
  && rm -rf /usr/local/src/netcdf-fortran-4.4.5
 
@@ -116,15 +112,23 @@ RUN wget -qO - https://download.sublimetext.com/sublimehq-pub.gpg | sudo apt-key
  && apt update \
  && apt install sublime-text -y
 
-## Configuration
-VOLUME [ "/inputdata"]
+## 3.1 add user
 ENV USER=clm
 RUN useradd -m -G adm,sudo -s /bin/bash $USER \
  && echo "root:root" | chpasswd \
  && echo "clm:clm" | chpasswd \
  && apt-get remove wget -y
 
-ENV PATH="${NCDIR}/bin:${PATH}"
+## 3.2 clone CLM5.0 repository
+RUN git clone -b release-clm5.0 https://github.com/ESCOMP/ctsm \
+ && cd ctsm && ./manage_externals/checkout_externals \
+ && chown -R clm:clm /model/ctsm \
+ && cd ..
+
+## 3.3 Configuration
+VOLUME [ "/inputdata"]
+ENV PATH="/model/ctsm/cime/scripts:${NCDIR}/bin:${PATH}" \
+    LANG=C.UTF-8
 
 COPY config/*.xml /home/${USER}/.cime/
 COPY config /home/${USER}/cesm/config
@@ -136,10 +140,10 @@ RUN chown -R clm:clm /home /home/${USER} /home/${USER}/.cime /inputdata
  # && chmod 755 -R /inputdata /home/${USER}/.cime /home/${USER} \
  # && echo 'export DISPLAY=:0.0' >> /etc/profile, chown
 
-USER ${USER}
 # ARG GIT_SSL_NO_VERIFY=true
 # RUN cd /home/${USER} \
 #  && git clone -b release-clm5.0 https://github.com/ESCOMP/ctsm.git clm5 \
 #  && cd clm5 \
 #  && ./manage_externals/checkout_externals
+USER ${USER}
 CMD bash
