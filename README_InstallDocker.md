@@ -26,3 +26,9 @@ sudo sed -i 's+download.docker.com+mirrors.tuna.tsinghua.edu.cn/docker-ce+' /etc
 sudo yum makecache fast
 sudo yum install docker-ce
 ```
+
+### Post configuration
+```bash
+sudo groupadd docker # Add your user to the docker group.
+sudo usermod -aG docker $USER
+```
