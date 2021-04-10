@@ -6,8 +6,8 @@ MAINTAINER "Dongdong Kong"
 WORKDIR /model
 ENV DEBIAN_FRONTEND=noninteractive
 
-ENV VERSION_CODENAME=bionic
-# cosmic
+ENV VERSION_CODENAME=focal
+# cosmic,bionic
 
 RUN rm /etc/apt/sources.list \
  && echo "deb [trusted=yes] https://mirrors.tuna.tsinghua.edu.cn/ubuntu/ ${VERSION_CODENAME} main restricted universe multiverse" >> /etc/apt/sources.list \
