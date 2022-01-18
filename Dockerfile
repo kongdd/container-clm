@@ -24,14 +24,14 @@ RUN apt-get update \
     dejagnu \
     sudo libtool \
     # elfutils-devel \
-    vim git subversion gfortran cmake cdo nco ncl-ncarg \
+    vim git subversion gfortran cmake \
     # r-cran-ncdf4 r-cran-raster \
     libxml2-utils libxml-libxml-perl \
     python \
     make m4 \
     libcurl4-openssl-dev liblapack-dev libblas-dev mpich libmpich-dev \
  && apt-get clean
-
+# cdo nco ncl-ncarg 
 # libopenmpi-dev
 ADD pkgs/*.gz /usr/local/src/
 
